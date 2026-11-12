@@ -40,6 +40,15 @@ TICKET_RE = re.compile(
     r"concerts?|tour|fan ?meeting|fan-?con)\b|티켓|예매|콘서트|투어|팬미팅|팬콘",
     re.I,
 )
+PERFORMANCE_RE = re.compile(
+    r"\b(?:actuaci[oó]n(?:es)?|presentaci[oó]n(?:es)?|escenario|en vivo|en directo|stage|"
+    r"performance|fancam|live|encore|m ?countdown|music bank|music core|inkigayo|"
+    r"show champion|studio choom|relay dance|dance practice|killing voice)\b"
+    r"|무대|직캠|엠카|뮤직뱅크|음악중심|인기가요|쇼챔피언|더쇼|라이브|컴백쇼",
+    re.I,
+)
+# El primer patrón que coincide pone el icono; todos los que coinciden, su hashtag.
+TAGS = [(TICKET_RE, "🎫", "#concierto_entradas"), (PERFORMANCE_RE, "🎤", "#actuacion")]
 
 KQ_SITE = "https://ateez.kqent.com"
 TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
@@ -48,16 +57,41 @@ GOOGLE_NEWS_URL = "https://news.google.com/rss/search"
 # satura y "6h" no; en días normales "1d" cubre retrasos de indexación.
 GOOGLE_NEWS_WINDOWS = ("6h", "1d")
 
-# "filter": feed general del que solo interesan las entradas que mencionan a
-# ATEEZ. "lang": idioma original; "es" no se traduce.
-SOURCES = [
-    {"name": "Web oficial ATEEZ", "kind": "kq_notices", "icon": "📢"},
-    {
-        "name": "YouTube ATEEZ",
+# Canales que suben actuaciones (programas musicales, estudios, sello). Su feed
+# solo trae los 15 últimos vídeos de cada canal.
+MUSIC_CHANNELS = {
+    "KQ ENTERTAINMENT": "UCQdq-lqPEq_yZ_wP_kuVB9Q",
+    "Mnet K-POP": "UCbD8EppRX3ZwJSou-TVo90A",
+    "KBS Kpop": "UCeLPm9yH_a_QH8n6445G-Ow",
+    "KBS WORLD TV": "UC5BMQOsAB8hKUyHu9KI6yig",
+    "SBSKPOP X INKIGAYO": "UCS_hnpJLQTvBkqALgapi_4g",
+    "MBCkpop": "UCe52oeb7Xv_KaJsEzcKXJJg",
+    "ALL THE K-POP": "UCPde4guD9yFBRzkxk2PatoA",
+    "THE K-POP": "UCoRXPcv8XK5fAplLbk9PTww",
+    "STUDIO CHOOM": "UCEIi7zFR_wE23jFncVtd6-A",
+    "it's Live": "UCB9e3pof1o83aa0kkaoeJGA",
+    "1theK": "UCweOkPb1wVVH0Q0Tlj4a5Pw",
+    "dingo music": "UCtCiO5t2voB14CmZKTkIzPQ",
+}
+
+
+def youtube(name: str, channel_id: str, filter: str | None = None) -> dict:
+    return {
+        "name": f"YouTube {name}",
         "kind": "feed",
         "icon": "🎬",
-        "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC2e4Ukj5Pfr7cb3KpJAFBdQ",
-    },
+        "filter": filter,
+        "url": f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}",
+    }
+
+
+# "filter": feed general del que solo interesan las entradas que mencionan a
+# ATEEZ, en el título ("title") o en título, resumen y etiquetas ("text").
+# "lang": idioma original; "es" no se traduce.
+SOURCES = [
+    {"name": "Web oficial ATEEZ", "kind": "kq_notices", "icon": "📢"},
+    youtube("ATEEZ", "UC2e4Ukj5Pfr7cb3KpJAFBdQ"),
+    *(youtube(name, channel_id, "title") for name, channel_id in MUSIC_CHANNELS.items()),
     {
         "name": "Google News",
         "kind": "google_news",
@@ -80,8 +114,8 @@ SOURCES = [
         "query": "에이티즈",
         "edition": {"hl": "ko", "gl": "KR", "ceid": "KR:ko"},
     },
-    {"name": "Soompi", "kind": "feed", "icon": "📰", "filter": True, "url": "https://www.soompi.com/feed"},
-    {"name": "Koreaboo", "kind": "feed", "icon": "📰", "filter": True, "url": "https://www.koreaboo.com/feed/"},
+    {"name": "Soompi", "kind": "feed", "icon": "📰", "filter": "text", "url": "https://www.soompi.com/feed"},
+    {"name": "Koreaboo", "kind": "feed", "icon": "📰", "filter": "text", "url": "https://www.koreaboo.com/feed/"},
     {
         "name": "Reddit r/ATEEZ",
         "kind": "feed",
@@ -119,8 +153,11 @@ def parse_feed(src: dict, content: bytes) -> list[Item]:
         if not title or not link:
             continue
         if src.get("filter"):
-            tags = " ".join(t.get("term") or "" for t in e.get("tags", []))
-            if not ATEEZ_RE.search(f"{title} {e.get('summary', '')} {tags}"):
+            text = title
+            if src["filter"] == "text":
+                tags = " ".join(t.get("term") or "" for t in e.get("tags", []))
+                text = f"{title} {e.get('summary', '')} {tags}"
+            if not ATEEZ_RE.search(text):
                 continue
         item_id = e.get("id") or link
         source = src["name"]
@@ -189,14 +226,14 @@ def to_spanish(text: str) -> str:
 
 def format_message(item: Item) -> str:
     title_es = item.title if item.lang == "es" else to_spanish(item.title)
-    is_ticket = TICKET_RE.search(f"{item.title} {title_es}")
-    lines = [f"{'🎫' if is_ticket else item.icon} <b>{html.escape(title_es)}</b>"]
+    matched = [(icon, tag) for pattern, icon, tag in TAGS if pattern.search(f"{item.title} {title_es}")]
+    lines = [f"{matched[0][0] if matched else item.icon} <b>{html.escape(title_es, quote=False)}</b>"]
     if title_es.casefold() != item.title.casefold():
-        lines.append(f"<i>{html.escape(item.title)}</i>")
-    if is_ticket:
-        lines.append("#concierto_entradas")
-    lines.append(html.escape(item.source))
-    lines.append(html.escape(item.link))
+        lines.append(f"<i>{html.escape(item.title, quote=False)}</i>")
+    if matched:
+        lines.append(" ".join(tag for _, tag in matched))
+    lines.append(html.escape(item.source, quote=False))
+    lines.append(html.escape(item.link, quote=False))
     return "\n".join(lines)
 
 

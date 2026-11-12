@@ -1,7 +1,7 @@
 # Noticias de ATEEZ en Telegram
 
 Revisa varias fuentes cada 15 minutos y te manda por Telegram cada noticia nueva, con el titular traducido al español.
-Lo que huele a concierto o entradas llega marcado con 🎫 y `#concierto_entradas` (búscalo en el chat para ver solo eso).
+Lo que huele a concierto o entradas llega marcado con 🎫 y `#concierto_entradas`; las actuaciones, con 🎤 y `#actuacion`. Busca el hashtag en el chat para ver solo eso.
 
 ## Fuentes
 
@@ -9,6 +9,7 @@ Lo que huele a concierto o entradas llega marcado con 🎫 y `#concierto_entrada
 |---|---|
 | Web oficial `ateez.kqent.com` | Avisos oficiales (membresía ATINY, eventos) |
 | YouTube oficial | Cada vídeo nuevo |
+| YouTube de KQ, programas musicales y estudios (Mnet, KBS, SBS, MBC, STUDIO CHOOM, it's Live, 1theK, dingo) | Solo los vídeos con ATEEZ en el título: actuaciones, teasers, apariciones en TV |
 | Google News en español, inglés y coreano | Prensa, incluida la coreana |
 | Soompi, Koreaboo | Solo los artículos que mencionan a ATEEZ |
 | Reddit r/ATEEZ | Comunidad de fans: recopila lo que publican en X, Instagram, etc. |
@@ -56,5 +57,6 @@ Repositorio **público**: gratis sin límite. Repositorio **privado**: el plan g
 Todo está al principio de `bot.py`:
 
 - `SOURCES`: quita o añade fuentes. Si llegan demasiados mensajes, la que más ruido mete es "Google News Corea".
-- `TICKET_RE`: palabras que marcan una noticia como concierto/entradas.
+- `MUSIC_CHANNELS`: canales de YouTube donde se buscan actuaciones.
+- `TICKET_RE`, `PERFORMANCE_RE`: palabras que marcan una noticia como concierto/entradas o como actuación.
 - `MAX_PER_RUN`: máximo de mensajes por ejecución; lo que sobra sale en la siguiente.
